@@ -1,10 +1,12 @@
-import { ActionPanel, Action, Icon, List, showToast, LocalStorage, Toast, Detail, Clipboard } from "@raycast/api";
+import { ActionPanel, Action, Icon, List, showToast, getPreferenceValues, openExtensionPreferences, Detail, Toast, Clipboard } from "@raycast/api";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import fs from "fs";
 import path from "path";
 
-const TERMS_KEY = "termsAccepted";
+interface TOSAccept {
+  termsAccepted: boolean;
+}
 
 type Socials = {
   twitter: string;
@@ -88,59 +90,63 @@ function getCachedData(): Server[] | null {
   return null;
 }
 
-const TagListComp = ({ title, primaryItem, items, server }: { title: string, primaryItem: string, items: string[], server: Server }) => (
-  <List.Item.Detail.Metadata.TagList title={title}>
-    {primaryItem && (
-      <List.Item.Detail.Metadata.TagList.Item
-        text={primaryItem}
-        color={server.primaryColor === "#FFFFFF" ? server.secondaryColor : server.primaryColor}
-      />
-    )}
-    {items.map((item) => {
-      if (item !== primaryItem) {
-        return (
-          <List.Item.Detail.Metadata.TagList.Item key={item} text={item} />
-        );
-      }
-      return null;
-    })}
-  </List.Item.Detail.Metadata.TagList>
-);
+const TagListComp = ({ title, primaryItem, items, server }: { title: string; primaryItem?: string; items?: string[]; server: Server }) => {
+  if (!primaryItem && (!items || items.length === 0)) return null;
+  return (
+    <List.Item.Detail.Metadata.TagList title={title}>
+      {primaryItem && (
+        <List.Item.Detail.Metadata.TagList.Item
+          text={primaryItem}
+          color={server.primaryColor === "#FFFFFF" ? server.secondaryColor : server.primaryColor}
+        />
+      )}
+      {items?.map((item) => {
+        if (item !== primaryItem) {
+          return (
+            <List.Item.Detail.Metadata.TagList.Item key={item} text={item} />
+          );
+        }
+        return null;
+      })}
+    </List.Item.Detail.Metadata.TagList>
+  );
+};
 
-const LinkComp = ({ title, link }: { title: string, link: string }) => (
-  <List.Item.Detail.Metadata.Link title={title} target={link} text={link} />
-);
+
+const LinkComp = ({ title, link }: { title: string; link?: string }) => {
+  if (!link) return null;
+  return <List.Item.Detail.Metadata.Link title={title} target={link} text={link} />;
+};
+
 
 export default function Command() {
   const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
   const [servers, setServers] = useState<Server[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
   useEffect(() => {
-    const checkTermsAcceptance = async () => {
-      const accepted = await LocalStorage.getItem(TERMS_KEY);
-      setTermsAccepted(accepted === "true");
+    const checkTermsAcceptance = () => {
+      const accepted = getPreferenceValues<TOSAccept>();
+      setTermsAccepted(accepted.termsAccepted === true);
     };
     checkTermsAcceptance();
   }, []);
 
   useEffect(() => {
     async function loadData() {
+      setLoading(true);
       let data = getCachedData();
       if (!data) {
         data = await fetchData();
         cacheData(data);
       }
       setServers(data);
+      setLoading(false);
     }
     if (termsAccepted) {
       loadData();
     }
   }, [termsAccepted]);
-
-  const acceptTerms = async () => {
-    await LocalStorage.setItem(TERMS_KEY, "true");
-    setTermsAccepted(true);
-    showToast(Toast.Style.Success, "Terms accepted!");
-  };
 
   const refreshData = async () => {
     if (fs.existsSync(CACHE_FILE)) {
@@ -166,7 +172,10 @@ export default function Command() {
   return (
     <>
       {termsAccepted ? (
-        <List isShowingDetail>
+        <List 
+        isLoading={loading}
+        searchBarPlaceholder="Search servers..."
+        isShowingDetail>
           {servers.map((server) => (
             <List.Item
               key={server.id}
@@ -191,7 +200,7 @@ export default function Command() {
                       <TagListComp 
                         title="Addresses" 
                         primaryItem={server.primaryAddress} 
-                        items={server.addresses || []} 
+                        items={server.addresses} 
                         server={server} 
                       />
                     
@@ -208,75 +217,46 @@ export default function Command() {
 
                       <TagListComp 
                         title="Regions" 
-                        primaryItem={server.primaryRegion ?? ""} 
-                        items={server.regions || []} 
+                        primaryItem={server.primaryRegion} 
+                        items={server.regions} 
                         server={server} 
                       />
                       <TagListComp 
                         title="Minecraft Versions" 
-                        primaryItem={server.primaryMinecraftVersion ?? ""} 
-                        items={server.minecraftVersions || []} 
+                        primaryItem={server.primaryMinecraftVersion} 
+                        items={server.minecraftVersions} 
                         server={server} 
                       />
                       <TagListComp 
                         title="Languages" 
-                        primaryItem={server.primaryLanguage ?? ""} 
-                        items={server.languages || []} 
+                        primaryItem={server.primaryLanguage} 
+                        items={server.languages} 
                         server={server} 
                       />
                       
-                      {server.website && (
-                        <LinkComp title="Website" link={server.website} />
-                      )}
-                      {server.store && (
-                        <LinkComp title="Store" link={server.store} />
-                      )}
-                      {server.merch && (
-                        <LinkComp title="Merch" link={server.merch} />
-                      )}
-                      {server.wiki && (
-                        <LinkComp title="Wiki" link={server.wiki} />
-                      )}
+                      <LinkComp title="Website" link={server.website} />
+                      <LinkComp title="Store" link={server.store} />
+                      <LinkComp title="Merch" link={server.merch} />
+                      <LinkComp title="Wiki" link={server.wiki} />
 
                       {server.socials && (
                         <List.Item.Detail.Metadata.Separator />
                       )}
-                      {server.socials?.twitter && (
-                        <LinkComp title="Twitter" link={server.socials.twitter} />
-                      )}
-                      {server.socials?.discord && (
-                        <LinkComp title="Discord" link={server.socials.discord} />
-                      )}
-                      {server.socials?.youtube && (
-                        <LinkComp title="YouTube" link={server.socials.youtube} />
-                      )}
-                      {server.socials?.instagram && (
-                        <LinkComp title="Instagram" link={server.socials.instagram} />
-                      )}
-                      {server.socials?.twitch && (
-                        <LinkComp title="Twitch" link={server.socials.twitch} />
-                      )}
-                      {server.socials?.telegram && (
-                        <LinkComp title="Telegram" link={server.socials.telegram} />
-                      )}
-                      {server.socials?.reddit && (
-                        <LinkComp title="Reddit" link={server.socials.reddit} />
-                      )}
-                      {server.socials?.tiktok && (
-                        <LinkComp title="TikTok" link={server.socials.tiktok} />
-                      )}
-                      {server.socials?.facebook && (
-                        <LinkComp title="Facebook" link={server.socials.facebook} />
-                      )}
-                      {server.socials && (
-                        <List.Item.Detail.Metadata.Separator />
-                      )}
+                      <LinkComp title="Twitter" link={server.socials?.twitter} />
+                      <LinkComp title="Discord" link={server.socials?.discord} />
+                      <LinkComp title="YouTube" link={server.socials?.youtube} />
+                      <LinkComp title="Instagram" link={server.socials?.instagram} />
+                      <LinkComp title="Twitch" link={server.socials?.twitch} />
+                      <LinkComp title="Telegram" link={server.socials?.telegram} />
+                      <LinkComp title="Reddit" link={server.socials?.reddit} />
+                      <LinkComp title="TikTok" link={server.socials?.tiktok} />
+                      <LinkComp title="Facebook" link={server.socials?.facebook} />
 
                       {server.modpack && (
-                        <List.Item.Detail.Metadata.Label title="Modpack" />
+                        <List.Item.Detail.Metadata.Separator />
                       )}
                       {server.modpack?.id && (
-                        <List.Item.Detail.Metadata.Label title="ID" text={server.modpack.id} />
+                        <List.Item.Detail.Metadata.Label title="Modpack ID" text={server.modpack.id} />
                       )}
                       {server.modpack?.promptBeforeGameJoin && (
                         <List.Item.Detail.Metadata.Label title="Prompt Before Game Join" text="Yes" />
@@ -284,7 +264,8 @@ export default function Command() {
                       {server.modpack?.promptBeforeLauncherJoin && (
                         <List.Item.Detail.Metadata.Label title="Prompt Before Launcher Join" text="Yes" />
                       )}
-                      {server.modpack && (
+
+                      {(server.inactive || server.enriched) && (
                         <List.Item.Detail.Metadata.Separator />
                       )}
                       {server.inactive && (<List.Item.Detail.Metadata.Label title="Inactive" text="Yes" />)}
@@ -298,11 +279,10 @@ export default function Command() {
         </List>
       ) : (
         <Detail
-        markdown={`# **Terms and Conditions**\n\n#### To use this feature you need to accept Lunar Client Terms of Service.\n\n#### Read here: https://lunarclient.com/terms or click \`↩\`\n\n## To accept, click \`⌘ + ↩\`, or select \`Accept\` from the Actions Menu.`}
+        markdown={`You need to accept Lunar Client's [Terms of Service](https://lunarclient.com/terms) to use this extension.`}
           actions={
             <ActionPanel>
-              <Action.OpenInBrowser url="https://lunarclient.com/terms" />
-              <Action icon={Icon.ThumbsUp} title="Accept" onAction={acceptTerms} />
+              <Action title="Open Extension Preferences" onAction={openExtensionPreferences} />
             </ActionPanel>
           }
         />

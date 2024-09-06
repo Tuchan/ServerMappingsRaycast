@@ -1,3 +1,5 @@
-# Lunar Client Hyperlink Changelog
+# Lunar Client Server Mappings Changelog
 
-## [Initial Version] - 2024-08-31
+## [Initial Version] - 2024-09-06
+
+🚀 Initial version deployed
