@@ -1,4 +1,5 @@
-# Lunar Client Server Mapping for Raycast
+# Lunar Client Server Mapping for Raycast <img height="22" alt="lunar-client-server-mappings-1" src="https://github.com/user-attachments/assets/9abf6ba9-6257-4d95-ac05-11a0c874c9c9">
+
 
 A [Raycast](https://www.raycast.com/) extension that allows you to view Minecraft [server mappings](https://servermappings.lunarclientcdn.com/servers.json) provided by [Lunar Client](https://www.lunarclient.com/)!
 
